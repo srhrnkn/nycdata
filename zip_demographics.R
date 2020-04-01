@@ -3,22 +3,24 @@ library(magrittr)
 library(STRAD)
 library(tidycensus)
 
-# library(extrafont)
 # 
-# #load fonts
-# font_import(paths = "../KievitforNYPL2016")
-# loadfonts()
+# v_18 <- load_variables(2018,"acs5",cache=T) %>% mutate(table=str_sub(name,1,6))
+# zcta_pop <- get_acs(geography = "zcta",variables = "B01003_001",year = 2018,geometry = F)   
+# zcta_med_income = get_acs(geography = "zcta",variables = c( "B06011_001"),year = 2018)
+# zcta_pov = get_acs(geography = "zcta",variables = c( "B17020_001","B17020_002"),year = 2018)
 
-reader_geog <- readRDS("reader_geog.Rds")
-nyc_zip_correspondence_use <- readRDS("nyc_zip_correspondence_use.Rds")
-print_checkouts_2020 <- readRDS("print_checkouts_2020.Rds")
+zcta_nyc_geom <- readRDS("zcta_nyc_geom.Rds")
+zcta_med_income <- readRDS("zcta_med_income.Rds")
+zcta_pop <- readRDS("zcta_pop.Rds")
+zcta_pov <- readRDS("zcta_pov.Rds")
+
+zcta_cv_nyc <- read_csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/tests-by-zcta.csv",col_types = cols(
+  MODZCTA = col_character(),
+  Positive = col_double(),
+  Total = col_double()
+))
 
 
-
-v_18 <- load_variables(2018,"acs5",cache=T) %>% mutate(table=str_sub(name,1,6))
-zcta_pop <- get_acs(geography = "zcta",variables = "B01003_001",year = 2018,geometry = F)   
-zcta_med_income = get_acs(geography = "zcta",variables = c( "B06011_001"),year = 2018)
-zcta_pov = get_acs(geography = "zcta",variables = c( "B17020_001","B17020_002"),year = 2018)
 
 #first cut of vars is the low response predictor vars from census = check to see if these are the same variable names in 2018 ACS
 #make varname table####
@@ -72,50 +74,24 @@ zcta_pov_wide <- zcta_pov %>%
   mutate(perc_pov = estimate_num/estimate_denom,
          moe_perc_pov = moe_prop(estimate_num,estimate_denom,moe_num,moe_denom))
 
-#kids####
-#figure out who is reading kids books
-juv_checkouts <- print_checkouts_2020 %<>% 
-  mutate(LocationAge = get_itype_info(itype_code_num,return_value = "LocationAge"),
-         item_coll = get_item_coll(item_location_code)) %>% 
-  filter(LocationAge=="Juvenile")
 
-patrons_juv_checkouts <- juv_checkouts %>% 
-  group_by(patron_id) %>% 
-  summarize(juv_checkout_count = n(), 
-            juv_checkout_any = T,
-            picture_checkout_count = sum(item_coll=="Picture Book",na.rm=T),
-            picture_checkout_any = picture_checkout_count>0) %>% 
-  ungroup()
 
 #start with median income, poverty
 #readers
 #convert zip code to zcta zip code
 #get median income
 #bin
-#summarize by e, p, both
-reader_geog_demo <- reader_geog %>% 
-  mutate(zip_use = coalesce(nyc_zip_correspondence_use$zcta_nyc_geom_ZIPCODE[match(postal_code,nyc_zip_correspondence_use$nyc_zip_geom_ZIPCODE)],postal_code)) %>%
-  left_join(patrons_juv_checkouts %>% select(patron_id,juv_checkout_any,picture_checkout_any)) %>% 
-  mutate(juv_checkout_any=case_when(total.p>0&juv_checkout_any~juv_checkout_any,
-                                    total.p>0~F,
-                                    T~NA),
-         picture_checkout_any=case_when(total.p>0&picture_checkout_any~picture_checkout_any,
-                                    total.p>0~F,
-                                    T~NA)) %>% 
-  left_join(zcta_med_income %>% select(zip_use = GEOID,median_income = estimate, moe_median_income=moe)) %>% 
-  left_join(zcta_pov_wide %>% select(zip_use = GEOID,perc_pov,moe_perc_pov)) %>% 
-  left_join(zcta_pop %>% select(zip_use = GEOID,pop_18 = estimate, moe_pop_18=moe)) %>% 
-  left_join(zcta_nyc_geom %>% st_drop_geometry() %>% select(zip_use=ZIPCODE,county=COUNTY,NYPL) %>% 
-              left_join(county_borough %>% add_row(county=c("Queens","Kings"),borough=c("Queens","Brooklyn"))))
 
-
-  mutate(perc_e=(`e only`+`p+e`)/total_readers,
-         median_income_quartile=ntile(median_income,n = 4),
+tests <- zcta_nyc_geom %>% select(ZIPCODE,COUNTY) %>% 
+  left_join(zcta_pop %>% select(ZIPCODE=GEOID,pop_18 = estimate, moe_pop_18=moe)) %>% 
+  left_join(zcta_med_income %>% select(ZIPCODE=GEOID,median_income = estimate, moe_median_income=moe)) %>% 
+  left_join(zcta_cv_nyc %>% rename(ZIPCODE=MODZCTA)) %>% 
+  mutate(test_per_pop=Total/pop_18,pos_per_pop=Positive/pop_18,pos_per_test=Positive/Total) %>%   mutate(median_income_quartile=ntile(median_income,n = 4),
          median_income_bin = cut(median_income,breaks = c(0,25000,35000,45000,85000,250000),
                                  labels = c("0-25K","25-35K","35-45K","45-85K","85K+")),
-         perc_pov_quartile = ntile(perc_pov,n = 4),
-         perc_pov_bin = cut(perc_pov,breaks = c(0,.05,.1,.15,.2,.3,.4,1),
-                            labels = c("0-5%","5-10%","10-15%","15-20%","20-30%","30-40%","40+%")),
+         # perc_pov_quartile = ntile(perc_pov,n = 4),
+         # perc_pov_bin = cut(perc_pov,breaks = c(0,.05,.1,.15,.2,.3,.4,1),
+         #                    labels = c("0-5%","5-10%","10-15%","15-20%","20-30%","30-40%","40+%")),
          median_income_bin_alt1=cut(median_income,breaks = c(0,12500,25000,35000,45000,65000,85000,250000),
                                     labels = c("0-12.5K","12.5-25K","25-35K","35-45K","45-65K","65-85K","85K+")),
          median_income_bin_alt2=cut(median_income,breaks = c(15000,20000,25000,35000,45000,65000,85000,250000),
@@ -126,106 +102,30 @@ reader_geog_demo <- reader_geog %>%
 #maps####
 #function to map value
 palette_maps <- "OrRd"
+OrRd_cols <- RColorBrewer::brewer.pal(n = 5,palette_maps)
 
-med_income_map <- zcta_nyc_geom %>% 
-  filter(NYPL) %>% 
-  left_join(reader_e_p_demo_byzip %>% select(ZIPCODE = zip_use,median_income_bin)) %>% 
-  ggplot(aes(fill = median_income_bin)) + 
+tests %>% 
+  ggplot(aes(fill = pos_per_test)) + 
   geom_sf() +
-  scale_fill_brewer(palette = palette_maps,direction = -1,name = "",na.translate=FALSE) + 
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5]) + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3),title  = element_text(family = "KievitforNYPL")) +
-  labs(title = "Median income by zip")
+        plot.margin = margin(3,3,3,3)) 
 
-perc_ebook_map <- zcta_nyc_geom %>% 
-  filter(NYPL) %>% 
-  left_join(reader_e_p_demo_byzip %>% 
-              mutate(perc_ebook_bin = cut(perc_e,breaks = c(0,.2,.4,.6,.8,1),
-                                          labels = c("0-20%","20-40%","40-60%","60-80%","80%+")),
-                     perc_ebook_bin2 = cut(perc_e,breaks = c(0,.15,.3,.45,.6,1),
-                                           labels = c("0-15%","15-30%","30-45%","45-60%","60%+"))
-                     ) %>% 
-              select(ZIPCODE = zip_use,perc_ebook_bin2)) %>% 
-  ggplot(aes(fill = perc_ebook_bin2)) + 
+tests %>% 
+  ggplot(aes(fill = pos_per_pop)) + 
   geom_sf() +
-  scale_fill_brewer(palette = palette_maps,direction = -1,name = "",na.translate=FALSE) + 
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5]) + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3),title = element_text(family = "KievitforNYPL")) +
-  labs(title = "% of readers\nchecking out ebooks",name = "")
+        plot.margin = margin(3,3,3,3)) 
 
 
-readers_map <- zcta_nyc_geom %>% 
-  filter(NYPL) %>% 
-  left_join(reader_e_p_demo_byzip %>% 
-              mutate(readers_perc_pop=total_readers/pop_18,
-                     readers_perc_pop_bin = cut(readers_perc_pop,breaks = c(0,.02,.04,.06,.8,1),
-                                          labels = c("0-2%","2-4%","4-6%","6-8%","8%+"))
-              ) %>% 
-              select(ZIPCODE = zip_use,readers_perc_pop_bin)) %>% 
-  ggplot(aes(fill = readers_perc_pop_bin)) + 
+tests %>% 
+  ggplot(aes(fill = test_per_pop)) + 
   geom_sf() +
-  scale_fill_brewer(palette = palette_maps,direction = -1,name = "",na.translate=FALSE) + 
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5]) + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3),title = element_text(family = "KievitforNYPL")) +
-  labs(title = "% of population\nchecking out books")
-
-juv_usage_map <- zcta_nyc_geom %>% 
-  filter(NYPL) %>% 
-  left_join(reader_p_juv_demo_byzip_juv %>% 
-              mutate(perc_w_juv_checkout = cut(perc_w_juv_checkout,breaks = c(.2,.3,.4,.5,.6,1),
-                                          labels = c("20-30%","30-40%","40-50%","50-60%","60%+"))
-              ) %>% 
-              select(ZIPCODE = zip_use,perc_w_juv_checkout)) %>% 
-  ggplot(aes(fill = perc_w_juv_checkout)) + 
-  geom_sf() +
-  scale_fill_brewer(palette = palette_maps,direction = -1,name = "",na.translate=FALSE) + 
-  theme_void() + 
-  theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3),title = element_text(family = "KievitforNYPL")) +
-  labs(title = "% of print readers\nchecking out children's books")
-
-#library(patchwork)
-zip_demo_maps <- med_income_map + perc_ebook_map + readers_map + juv_usage_map  
-
-ggsave("zip_demo_maps.png",zip_demo_maps,dpi = "retina",height = 10,width = 7)
-
-#scatterplots####
-
-
-
-juv_medincome_scatter <- reader_p_juv_demo_byzip_juv %>% 
-  filter(residency_cat=="NYPL boroughs") %>% 
-  ggplot(aes(x=median_income,y = perc_w_juv_checkout,color = borough,size = total_print_readers)) + 
-  geom_point(alpha = .8) + 
-  scale_color_manual(values = borough_cols,name = "Borough",guide = guide_legend(order=1,override.aes = list(size=3))) + 
-  scale_size_continuous(name = "Print Readers\n in Zip Code",breaks = c(100,1000,4000)) +
-  scale_x_continuous(labels = scales::label_dollar(), name= "\nZip Code Median Income") +
-  scale_y_continuous(breaks = c(.2,.3,.4,.5,.6,.7),labels = scales::label_percent(), name = "",limits = c(.15,.75)) +
-  theme_minimal() +
-  theme(text = element_text(family = "Helvetica"),plot.subtitle = element_text(hjust = .5)) +
-  labs(title = "Percent of print readers checking out\n  children's books",subtitle = "NYPL Zip Codes")
-
-ggsave("juv_medincome_scatter.png",juv_medincome_scatter,dpi = "retina",height = 4,width = 4)
-
-e_p_medincome_scatter <- reader_e_p_demo_byzip %>% 
-  filter(residency_cat=="NYPL boroughs") %>% 
-  ggplot(aes(x=median_income,y = perc_e,color = borough,size = total_readers)) + 
-  geom_point(alpha = .8) + 
-  scale_color_manual(values = borough_cols,name = "Borough",guide = guide_legend(order=1,override.aes = list(size=3))) + 
-  scale_size_continuous(name = "Readers\n in Zip Code",
-                        breaks = c(500,1500,6000)
-                        ) +
-  scale_x_continuous(labels = scales::label_dollar(), name= "\nZip Code Median Income") +
-  scale_y_continuous(breaks = c(.2,.3,.4,.5,.6,.7),labels = scales::label_percent(), name = "",limits = c(.15,.75)) +
-  theme_minimal() +
-  theme(text = element_text(family = "Helvetica"),plot.subtitle = element_text(hjust = .5)) +
-  labs(title = "Percent of readers checking out\n  ebooks",subtitle = "NYPL Zip Codes")
-
-ggsave("e_p_medincome_scatter.png",e_p_medincome_scatter,dpi = "retina",height = 4,width = 4)
-
-
-
+        plot.margin = margin(3,3,3,3)) 
 
