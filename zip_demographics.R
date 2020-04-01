@@ -104,28 +104,36 @@ tests <- zcta_nyc_geom %>% select(ZIPCODE,COUNTY) %>%
 palette_maps <- "OrRd"
 OrRd_cols <- RColorBrewer::brewer.pal(n = 5,palette_maps)
 
-tests %>% 
+pos_per_test_map <- tests %>% 
   ggplot(aes(fill = pos_per_test)) + 
   geom_sf() +
-  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5]) + 
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],labels = scales::label_percent(),name="% of Tests Positive") + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
         plot.margin = margin(3,3,3,3)) 
 
-tests %>% 
+ggsave("pos_per_test_map.png",pos_per_test_map,dpi = "retina")
+
+pos_per_pop_map <- tests %>% 
   ggplot(aes(fill = pos_per_pop)) + 
   geom_sf() +
-  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5]) + 
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],
+                      #labels = scales::label_percent(),
+                      name="Positive Tests per capita") + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
         plot.margin = margin(3,3,3,3)) 
 
+ggsave("pos_per_pop_map.png",pos_per_pop_map,dpi = "retina")
 
-tests %>% 
+test_per_pop_map <- tests %>% 
   ggplot(aes(fill = test_per_pop)) + 
   geom_sf() +
-  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5]) + 
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],
+                      #labels = scales::label_percent(),
+                      name="Tests per capita") + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
         plot.margin = margin(3,3,3,3)) 
 
+ggsave("test_per_pop_map.png",test_per_pop_map,dpi = "retina")
