@@ -95,7 +95,9 @@ tests <- zcta_nyc_geom %>% select(ZIPCODE,COUNTY) %>%
          median_income_bin_alt1=cut(median_income,breaks = c(0,12500,25000,35000,45000,65000,85000,250000),
                                     labels = c("0-12.5K","12.5-25K","25-35K","35-45K","45-65K","65-85K","85K+")),
          median_income_bin_alt2=cut(median_income,breaks = c(15000,20000,25000,35000,45000,65000,85000,250000),
-                                    labels = c("15-20K","20-25K","25-35K","35-45K","45-65K","65-85K","85K+")))
+                                    labels = c("15-20K","20-25K","25-35K","35-45K","45-65K","65-85K","85K+")),
+         pop_bin=cut(median_income,breaks = c(0,10000,30000,50000,70000,113000),
+                                    labels = c("0-10K","10-30K","30-50K","50-70K","70-113K")))
 
 
 
@@ -139,13 +141,27 @@ test_per_pop_map <- tests %>%
 ggsave("test_per_pop_map.png",test_per_pop_map,dpi = "retina")
 
 med_income_map <- tests %>% 
-  ggplot(aes(fill = median_income_quartile)) + 
+  ggplot(aes(fill = median_income_bin)) + 
   geom_sf() +
-  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],
+  scale_fill_manual(values = rev(OrRd_cols),
                       #labels = scales::label_percent(),
-                      name="Zip median income") + 
+                      name="Zip median income ($)",na.translate = F) + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
         plot.margin = margin(3,3,3,3)) 
 
-ggsave("test_per_pop_map.png",test_per_pop_map,dpi = "retina")
+ggsave("med_income_map.png",med_income_map,dpi = "retina")
+
+
+pop_map <- tests %>% 
+  ggplot(aes(fill = pop_bin)) + 
+  geom_sf() +
+  scale_fill_brewer(palette = "Blues",
+                    #labels = scales::label_percent(),
+                    name="Zip population",na.translate = F) + 
+  theme_void() + 
+  theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
+        plot.margin = margin(3,3,3,3)) 
+
+ggsave("pop_map.png",pop_map,dpi = "retina")
+
