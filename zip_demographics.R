@@ -137,3 +137,15 @@ test_per_pop_map <- tests %>%
         plot.margin = margin(3,3,3,3)) 
 
 ggsave("test_per_pop_map.png",test_per_pop_map,dpi = "retina")
+
+med_income_map <- tests %>% 
+  ggplot(aes(fill = median_income_quartile)) + 
+  geom_sf() +
+  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],
+                      #labels = scales::label_percent(),
+                      name="Zip median income") + 
+  theme_void() + 
+  theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
+        plot.margin = margin(3,3,3,3)) 
+
+ggsave("test_per_pop_map.png",test_per_pop_map,dpi = "retina")
