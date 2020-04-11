@@ -14,12 +14,22 @@ zcta_med_income <- readRDS("zcta_med_income.Rds")
 zcta_pop <- readRDS("zcta_pop.Rds")
 zcta_pov <- readRDS("zcta_pov.Rds")
 
-zcta_cv_nyc <- read_csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/tests-by-zcta.csv",col_types = cols(
+# zcta_cv_nyc_2020_04_01 <- zcta_cv_nyc
+# saveRDS(zcta_cv_nyc_2020_04_01,"zcta_cv_nyc_2020_04_01.Rds")
+
+
+update_date <- "2020_04_10"
+assign(paste0("zcta_cv_nyc_",update_date),read_csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/tests-by-zcta.csv",col_types = cols(
   MODZCTA = col_character(),
   Positive = col_double(),
   Total = col_double()
-))
+)))
 
+#save current version with date
+saveRDS(get(paste0("zcta_cv_nyc_",update_date)),paste0("zcta_cv_nyc_",update_date,".Rds"))
+
+#generically named
+assign("zcta_cv_nyc",get(paste0("zcta_cv_nyc_",update_date)))
 
 
 #first cut of vars is the low response predictor vars from census = check to see if these are the same variable names in 2018 ACS
@@ -97,7 +107,11 @@ tests <- zcta_nyc_geom %>% select(ZIPCODE,COUNTY) %>%
          median_income_bin_alt2=cut(median_income,breaks = c(15000,20000,25000,35000,45000,65000,85000,250000),
                                     labels = c("15-20K","20-25K","25-35K","35-45K","45-65K","65-85K","85K+")),
          pop_bin=cut(median_income,breaks = c(0,10000,30000,50000,70000,113000),
-                                    labels = c("0-10K","10-30K","30-50K","50-70K","70-113K")))
+                                    labels = c("0-10K","10-30K","30-50K","50-70K","70-113K")),
+         pos_per_test_bin = cut(pos_per_test,breaks = c(.2,.32,.44,.56,.68,.8),
+                            labels = c("20-32%","32-44%","44-56%","56-68%","68-80%")),
+         pos_per_1000pop_bin = cut(pos_per_pop,breaks = c(0,.005,.01,.015,.02,.025),
+                            labels = c("0-.5",".5-1","1-1.5","1.5-2","2-2.5")))
 
 
 
@@ -107,24 +121,26 @@ palette_maps <- "OrRd"
 OrRd_cols <- RColorBrewer::brewer.pal(n = 5,palette_maps)
 
 pos_per_test_map <- tests %>% 
-  ggplot(aes(fill = pos_per_test)) + 
+  ggplot(aes(fill = pos_per_test_bin)) + 
   geom_sf() +
-  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],labels = scales::label_percent(),name="% of Tests Positive") + 
+  scale_fill_manual(values = (OrRd_cols),
+                    name="% of Tests Positive",na.translate = F) +  
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3)) 
+        plot.margin = margin(3,3,3,3)) +
+  labs(caption = paste0("Source: NYC Department of Health and Mental Hygiene (DOHMH)\nIncident Command System for COVID-19 Response\nupdated ",update_date))
 
 ggsave("pos_per_test_map.png",pos_per_test_map,dpi = "retina")
 
 pos_per_pop_map <- tests %>% 
-  ggplot(aes(fill = pos_per_pop)) + 
+  ggplot(aes(fill = pos_per_1000pop_bin)) + 
   geom_sf() +
-  scale_fill_gradient(low = OrRd_cols[1],high = OrRd_cols[5],
-                      #labels = scales::label_percent(),
-                      name="Positive Tests per capita") + 
+  scale_fill_manual(values = (OrRd_cols),
+                    name="Positive Tests per\n1000 people",na.translate = F)  + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3)) 
+        plot.margin = margin(3,3,3,3))  +
+  labs(caption = paste0("Source: NYC DOHMH + 2018 ACS 5-year estimates\nupdated ",update_date))
 
 ggsave("pos_per_pop_map.png",pos_per_pop_map,dpi = "retina")
 
@@ -136,7 +152,8 @@ test_per_pop_map <- tests %>%
                       name="Tests per capita") + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3)) 
+        plot.margin = margin(3,3,3,3)) +
+  labs(caption = paste0("Source: NYC DOHMH + 2018 ACS 5-year estimates\nupdated ",update_date))
 
 ggsave("test_per_pop_map.png",test_per_pop_map,dpi = "retina")
 
@@ -148,7 +165,8 @@ med_income_map <- tests %>%
                       name="Zip median income ($)",na.translate = F) + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3)) 
+        plot.margin = margin(3,3,3,3)) +
+  labs(caption = paste0("Source: 2018 ACS 5-year estimates"))
 
 ggsave("med_income_map.png",med_income_map,dpi = "retina")
 
@@ -161,7 +179,15 @@ pop_map <- tests %>%
                     name="Zip population",na.translate = F) + 
   theme_void() + 
   theme(legend.position = c(.25,.75),plot.background = element_rect(color = "black"),legend.key.size = unit(5,"mm"),
-        plot.margin = margin(3,3,3,3)) 
+        plot.margin = margin(3,3,3,3))  +
+  labs(caption = paste0("Source: 2018 ACS 5-year estimates"))
 
 ggsave("pop_map.png",pop_map,dpi = "retina")
 
+library(patchwork)
+
+combined_maps <- pop_map +
+  med_income_map +
+  pos_per_test_map +
+  pos_per_pop_map 
+ggsave("combined_maps.png",combined_maps,dpi = "retina")
