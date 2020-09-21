@@ -80,7 +80,7 @@ cases_weeks_file_dates %>%
   ggplot(aes(x=obs_number,y=cases,group=as.character(week_start),color=as.character(week_start))) +
   geom_line(size=5,alpha=.9) + 
   #geom_text(data = )
-  scale_x_continuous(breaks = c(7,14,21)) +
+  scale_x_continuous(breaks = c(7,14,21),name = "days since first complete week of data uploaded") +
   scale_color_manual(values = RColorBrewer::brewer.pal(7,"BuPu"),name="week of") +
   theme_minimal() +
   labs(subtitle = "NYC weekly cases by data upload date")
