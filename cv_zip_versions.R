@@ -54,7 +54,7 @@ c_v_zip_stacked_new %<>% mutate(MODIFIED_ZCTA=as.character(MODIFIED_ZCTA))
 c_v_zip_stacked_new %>% count(date)
 
 #c_v_zip_stacked_new %<>% filter(!commit_string=="7138e6906c9ee1117e2dac06656f0e1c03190370")
-
+#ad to old####
 c_v_zip_stacked %<>% bind_rows(c_v_zip_stacked_new) %>% arrange(desc(date))
 
 
@@ -105,10 +105,7 @@ zip_weekly_neighborhoods <- c_v_zip_stacked  %>%
          perc_pov_bin=cut(perc_pov,breaks = c(-1,.05,.1,.15,.2,.3,.4,.6),
                           labels = c('0-5%', '5-10%', '10-15%', '15-20%', '20-30%', '30-40%', '40+%'))) %>% 
   mutate(week=week(date)) %>% 
-  group_by(week) %>% 
-  mutate(days_in_week=length(unique(date))) %>% 
-  ungroup() %>% 
-  filter(days_in_week==7) %>% 
+  filter(max(date)-date>=7) %>% 
   arrange(neighborhood,date) %>% 
   group_by(week,neighborhood) %>% 
   mutate(day_count=row_number()) %>% 

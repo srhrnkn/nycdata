@@ -76,12 +76,12 @@ cases_weeks_file_dates <- c_v_stacked %>%
   ungroup()
 
 cases_weeks_file_dates %>% 
-  filter(week>30) %>% 
+  filter(week>30,max(obs_number)>7) %>% 
   ggplot(aes(x=obs_number,y=cases,group=as.character(week_start),color=as.character(week_start))) +
   geom_line(size=5,alpha=.9) + 
   #geom_text(data = )
   scale_x_continuous(breaks = c(7,14,21),name = "days since first complete week of data uploaded") +
-  scale_color_manual(values = RColorBrewer::brewer.pal(7,"BuPu"),name="week of") +
+  scale_color_manual(values = RColorBrewer::brewer.pal(8,"BuPu"),name="week of") +
   theme_minimal() +
   labs(subtitle = "NYC weekly cases by data upload date")
 ggsave("cases_by_upload.png")
