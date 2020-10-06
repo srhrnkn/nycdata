@@ -76,14 +76,16 @@ cases_weeks_file_dates <- c_v_stacked %>%
   ungroup()
 
 cases_weeks_file_dates %>% 
-  filter(week>30,max(obs_number)>7) %>% 
+  filter(week>31,max(obs_number)>7) %>% 
   ggplot(aes(x=obs_number,y=cases,group=as.character(week_start),color=as.character(week_start))) +
   geom_line(size=5,alpha=.9) + 
   #geom_text(data = )
-  scale_x_continuous(breaks = c(7,14,21),name = "days since first complete week of data uploaded") +
+  scale_x_continuous(breaks = c(7,14,21,28),limits = c(0,28),name = "days since first complete week of data uploaded") +
+  scale_y_continuous(name = "cases reported") +
   scale_color_manual(values = RColorBrewer::brewer.pal(8,"BuPu"),name="week of") +
   theme_minimal() +
-  labs(subtitle = "NYC weekly cases by data upload date")
+  labs(subtitle = "NYC weekly case totals by data upload date",
+       caption = "Source: github.com/nychealth/coronavirus-data daily commits")
 ggsave("cases_by_upload.png")
 
 
@@ -93,7 +95,8 @@ cases_weeks_file_dates %>%
   ggplot(aes(x=obs_number,y=cases,group=week_start,color=week_start)) +
   geom_line(size=5,alpha=.9) + 
   #geom_text(data = )
-  scale_x_continuous(breaks = c(7,14,21)) +
+  scale_x_continuous(breaks = c(7,14,21,28),limits = c(0,28),name = "days since first complete week of data uploaded") +
+  scale_y_continuous(name = "cases reported") +
   scale_color_date(breaks = cases_weeks_file_dates %>% filter(week>24) %>% distinct(week,week_start) %>% pull(week_start)) +
   #scale_color_manual(values = RColorBrewer::brewer.pal(5,"BuPu"),name="week") +
   theme_minimal()
