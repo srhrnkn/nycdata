@@ -52,7 +52,8 @@ c_v_stacked %<>% bind_rows(c_v_stacked_new) %>% arrange(desc(file_date),desc(obs
 
 #two commits on 9/8, remove earlier
 #c_v_stacked %<>% filter(!commit_string=="7138e6906c9ee1117e2dac06656f0e1c03190370")
-
+#wrong date for 10/10 update, edit
+# c_v_stacked %<>% mutate(file_date=case_when(commit_string=="cb99a5b4dbf908e7d6d401b598360699a0b9fd05"~ymd(20201010),T~file_date))
 
 saveRDS(c_v_stacked,"c_v_stacked.Rds")
 
@@ -76,7 +77,7 @@ cases_weeks_file_dates <- c_v_stacked %>%
   ungroup()
 
 cases_weeks_file_dates %>% 
-  filter(week>31,max(obs_number)>7) %>% 
+  filter(week>33,max(obs_number)>7) %>% 
   ggplot(aes(x=obs_number,y=cases,group=as.character(week_start),color=as.character(week_start))) +
   geom_line(size=5,alpha=.9) + 
   #geom_text(data = )
@@ -85,7 +86,7 @@ cases_weeks_file_dates %>%
   scale_color_manual(values = RColorBrewer::brewer.pal(8,"BuPu"),name="week of") +
   theme_minimal() +
   labs(subtitle = "NYC weekly case totals by data upload date",
-       caption = "Source: github.com/nychealth/coronavirus-data daily commits")
+       caption = "Source: github.com/nychealth/coronavirus-data daily commits") 
 ggsave("cases_by_upload.png")
 
 
