@@ -30,11 +30,21 @@ c_v_stacked <- readRDS("c_v_stacked.Rds")
 
 commits <-read_html("https://github.com/nychealth/coronavirus-data/commits/master/case-hosp-death.csv")
 
-data_upload_strings <- commits %>% html_children() %>% extract2(2) %>% html_nodes("a") %>% extract(str_detect(.,"[:digit:]{1,2}/[:digit:]{1,2}")&str_detect(.,"coronavirus-data")) %>% as.character()
+#old version when date was included in update message
+# data_upload_strings <- commits %>% html_children() %>% extract2(2) %>% html_nodes("a") %>% extract(str_detect(.,"[:digit:]{1,2}/[:digit:]{1,2}|data update")&str_detect(.,"coronavirus-data")) %>% as.character()
+# new_commit_df <- data_upload_strings %>% map_dfr(~tibble(date_string=str_extract(.x,"[:digit:]{1,2}/[:digit:]{1,2}"),commit_string=str_extract(.x,"nychealth/coronavirus-data/commit/[:alnum:]{40}") %>% str_remove("nychealth/coronavirus-data/commit/"))) %>% 
+#   mutate(date=mdy(paste0(str_extract(date_string,"[:digit:]{1,2}/[:digit:]{1,2}"),"/20")),
+#          date=case_when(is.na(date)&lag(date)==ymd("2020-06-25")&lead(date)==ymd("2020-06-23")~ymd("2020-06-24"),T~date)) %>% 
+#   filter(!date  %in% c_v_stacked$file_date)
 
-new_commit_df <- data_upload_strings %>% map_dfr(~tibble(date_string=str_extract(.x,"[:digit:]{1,2}/[:digit:]{1,2}"),commit_string=str_extract(.x,"nychealth/coronavirus-data/commit/[:alnum:]{40}") %>% str_remove("nychealth/coronavirus-data/commit/"))) %>% 
-  mutate(date=mdy(paste0(str_extract(date_string,"[:digit:]{1,2}/[:digit:]{1,2}"),"/20")),
-         date=case_when(is.na(date)&lag(date)==ymd("2020-06-25")&lead(date)==ymd("2020-06-23")~ymd("2020-06-24"),T~date)) %>% 
+#new - get date directly from timeline text
+data_upload_strings <- commits %>% html_children() %>% extract2(2) %>% html_nodes("div.TimelineItem-body") %>% extract(str_detect(.,"[:digit:]{1,2}/[:digit:]{1,2}|data update")&str_detect(.,"coronavirus-data")) %>% as.character()
+
+
+new_commit_df <- data_upload_strings %>% 
+  map_dfr(~tibble(date_string=str_extract(.x,"Commits on .+<") %>% str_remove("Commits on ") %>% str_remove("<"),
+                  commit_string=str_extract(.x,"nychealth/coronavirus-data/commit/[:alnum:]{40}") %>% str_remove("nychealth/coronavirus-data/commit/"))) %>% 
+  mutate(date=mdy(date_string)) %>% 
   filter(!date  %in% c_v_stacked$file_date)
 
 
@@ -62,7 +72,7 @@ c_v_stacked %>%
   filter(file_date==max(file_date)) %>% 
   mutate(week=week(obs_date)) %>% 
   group_by(week) %>% 
-  summarize(days=n(),cases=sum(CASE_COUNT),week_start=min(obs_date),week_end=max(obs_date)) %>% 
+  summarize(days=n(),cases=sum(CASE_COUNT),hospitalized=sum(HOSPITALIZED_COUNT),deaths=sum(DEATH_COUNT),week_start=min(obs_date),week_end=max(obs_date)) %>% 
   tail(10)
 
 #same but also count by file date
@@ -77,7 +87,11 @@ cases_weeks_file_dates <- c_v_stacked %>%
   ungroup()
 
 cases_weeks_file_dates %>% 
-  filter(week>33,max(obs_number)>7) %>% 
+  group_by(week) %>% 
+  filter(week>35,
+         #max(obs_number)>=7
+         ) %>% 
+  ungroup() %>% 
   ggplot(aes(x=obs_number,y=cases,group=as.character(week_start),color=as.character(week_start))) +
   geom_line(size=5,alpha=.9) + 
   #geom_text(data = )

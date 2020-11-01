@@ -349,8 +349,7 @@ weekly_modzcta_latest %>% left_join(zips_shutdown,by=c(MODIFIED_ZCTA="ZCTA")) %>
   
 library(mapboxapi)
 library(leaflet)
-mb_access_token(token = "pk.eyJ1Ijoic3Jocm5rbiIsImEiOiJja2cydTY2enAwNGVlMnlsMHN3bjFsYnljIn0.ACdFa8cOW3VEKKMLvwXJ4w",install = T)
-mb_access_token("sk.eyJ1Ijoic3Jocm5rbiIsImEiOiJja2c2dTlxcDAwMHlnMnNwZ3M2amh3NXNyIn0.jksnV6r3rXLq2PBhjGjY0g",install = T)
+
 
 leaflet() %>% 
   addMapboxTiles(username = "srhrnkn",style_id = "light-v9") %>% 
