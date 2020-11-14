@@ -28,14 +28,9 @@ library(magrittr)
 #add days####
 c_v_stacked <- readRDS("c_v_stacked.Rds")
 
-commits <-read_html("https://github.com/nychealth/coronavirus-data/commits/master/case-hosp-death.csv")
+#11/14 revise to account for new file structure - missed a few days in there
+commits <-read_html("https://github.com/nychealth/coronavirus-data/commits/master/trends/data-by-day.csv")
 
-#old version when date was included in update message
-# data_upload_strings <- commits %>% html_children() %>% extract2(2) %>% html_nodes("a") %>% extract(str_detect(.,"[:digit:]{1,2}/[:digit:]{1,2}|data update")&str_detect(.,"coronavirus-data")) %>% as.character()
-# new_commit_df <- data_upload_strings %>% map_dfr(~tibble(date_string=str_extract(.x,"[:digit:]{1,2}/[:digit:]{1,2}"),commit_string=str_extract(.x,"nychealth/coronavirus-data/commit/[:alnum:]{40}") %>% str_remove("nychealth/coronavirus-data/commit/"))) %>% 
-#   mutate(date=mdy(paste0(str_extract(date_string,"[:digit:]{1,2}/[:digit:]{1,2}"),"/20")),
-#          date=case_when(is.na(date)&lag(date)==ymd("2020-06-25")&lead(date)==ymd("2020-06-23")~ymd("2020-06-24"),T~date)) %>% 
-#   filter(!date  %in% c_v_stacked$file_date)
 
 #new - get date directly from timeline text
 data_upload_strings <- commits %>% html_children() %>% extract2(2) %>% html_nodes("div.TimelineItem-body") %>% extract(str_detect(.,"[:digit:]{1,2}/[:digit:]{1,2}|data update")&str_detect(.,"coronavirus-data")) %>% as.character()
@@ -45,14 +40,17 @@ new_commit_df <- data_upload_strings %>%
   map_dfr(~tibble(date_string=str_extract(.x,"Commits on .+<") %>% str_remove("Commits on ") %>% str_remove("<"),
                   commit_string=str_extract(.x,"nychealth/coronavirus-data/commit/[:alnum:]{40}") %>% str_remove("nychealth/coronavirus-data/commit/"))) %>% 
   mutate(date=mdy(date_string)) %>% 
-  filter(!date  %in% c_v_stacked$file_date)
+  filter(!date  %in% c_v_stacked$file_date) 
 
 
-c_v_stacked_new <- new_commit_df  %>% mutate(data=map(commit_string,~read_csv(paste0("https://raw.githubusercontent.com/nychealth/coronavirus-data/",.x,"/case-hosp-death.csv")))) 
 
-c_v_stacked_new %<>% unnest(cols = c(data)) %>% mutate(obs_date=mdy(DATE_OF_INTEREST)) %>% 
+c_v_stacked_new <- new_commit_df  %>% mutate(data=map(commit_string,~read_csv(paste0("https://raw.githubusercontent.com/nychealth/coronavirus-data/",.x,"/trends/data-by-day.csv")))) 
+
+c_v_stacked_new %<>% unnest(cols = c(data)) %>% mutate(obs_date=mdy(date_of_interest)) %>% 
   select(-date_string) %>% add_count(obs_date,name = "count_obs") %>% 
-  add_count(obs_date,CASE_COUNT,name = "count_obs_case") %>%  rename(file_date=date)
+  add_count(obs_date,CASE_COUNT,name = "count_obs_case") %>%  
+  rename(file_date=date,
+         DATE_OF_INTEREST=date_of_interest)
 
 c_v_stacked_new %>% count(file_date)
 
@@ -75,32 +73,51 @@ c_v_stacked %>%
   summarize(days=n(),cases=sum(CASE_COUNT),hospitalized=sum(HOSPITALIZED_COUNT),deaths=sum(DEATH_COUNT),week_start=min(obs_date),week_end=max(obs_date)) %>% 
   tail(10)
 
-#same but also count by file date
-cases_weeks_file_dates <- c_v_stacked %>% 
-  mutate(week=week(obs_date)) %>% 
+#recent weeks next to each other
+c_v_stacked %>% 
+  filter(obs_date>min(c_v_stacked$obs_date,na.rm = T)) %>% 
+  mutate(week=ceiling(lubridate::as.period(obs_date - min(c_v_stacked$obs_date,na.rm = T))/weeks(1))) %>% 
   group_by(file_date,week) %>% 
   summarize(days=n(),cases=sum(CASE_COUNT),week_start=min(obs_date),week_end=max(obs_date)) %>% 
-  filter(days==7) %>% 
+  #filter(days==7) %>% 
+  group_by(week) %>% 
+  arrange(week,days,file_date) %>% 
+  mutate(obs_number=row_number()) %>% 
+  ungroup()  %>% 
+  filter(week>(max(week)-6)) %>% 
+  select(week_start,obs_number,days_inc=days,cases) %>% 
+  spread(week_start,cases) 
+
+#full weeks by week
+
+week_start_wday <- "Sun"
+#week_start_wday <- "Tue"
+min_date <- min(c_v_stacked$obs_date[wday(c_v_stacked$obs_date,label=T)==week_start_wday],na.rm=T)
+cases_weeks_file_dates <- c_v_stacked %>% 
+  filter(obs_date>=min_date) %>% 
+  mutate(week=ceiling(as.period(obs_date - (min_date-1))/weeks(1))) %>% 
+  group_by(file_date,week) %>% 
+  summarize(days=n(),cases=sum(CASE_COUNT),week_start=min(obs_date),week_end=max(obs_date)) %>% 
+  #filter(days==7) %>% 
   group_by(week) %>% 
   arrange(week,file_date) %>% 
   mutate(obs_number=row_number()) %>% 
   ungroup()
 
 cases_weeks_file_dates %>% 
-  group_by(week) %>% 
-  filter(week>35,
-         #max(obs_number)>=7
+  filter(week>(max(week)-8),
+         #days==7 
          ) %>% 
-  ungroup() %>% 
-  ggplot(aes(x=obs_number,y=cases,group=as.character(week_start),color=as.character(week_start))) +
-  geom_line(size=5,alpha=.9) + 
+  mutate(week_name=paste0(wday(week_start,label=T)," ",format.Date(week_start,"%m/%d"))) %>% 
+  ggplot(aes(x=obs_number,y=cases,group=as.character(week_name),color=as.character(week_name))) +
+  geom_line(size=2,alpha=.9) + 
   #geom_text(data = )
-  scale_x_continuous(breaks = c(7,14,21,28),limits = c(0,28),name = "days since first complete week of data uploaded") +
+  scale_x_continuous(breaks = c(7,14,21),limits = c(0,21),name = "days since first day of data uploaded") +
   scale_y_continuous(name = "cases reported") +
-  scale_color_manual(values = RColorBrewer::brewer.pal(8,"BuPu"),name="week of") +
+  scale_color_brewer(palette = "Spectral",direction = -1,name="week of") +
   theme_minimal() +
   labs(subtitle = "NYC weekly case totals by data upload date",
-       caption = "Source: github.com/nychealth/coronavirus-data daily commits") 
+       caption = paste0("Source: github.com/nychealth/coronavirus-data daily commits\ndata through ",max(c_v_stacked$obs_date,na.rm=T))) 
 ggsave("cases_by_upload.png")
 
 
